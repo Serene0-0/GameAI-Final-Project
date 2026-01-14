@@ -28,7 +28,7 @@ AGACharacter::AGACharacter()
 	// instead of recompiling to adjust them
 	GetCharacterMovement()->JumpZVelocity = 700.f;
 	GetCharacterMovement()->AirControl = 0.35f;
-	GetCharacterMovement()->MaxWalkSpeed = 500.f;
+	GetCharacterMovement()->MaxWalkSpeed = 200.f;
 	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
@@ -48,17 +48,7 @@ void AGACharacter::BeginPlay()
 
 void AGACharacter::Tick(float DeltaSeconds)
 {
-	UWorld* World = GetWorld();
-	float Time = World->GetTimeSeconds();
+	// Do nothing
 
-	float MoveScale = MoveAmplitude * FMath::Cos(MoveFrequency * Time);
-
-	// We're sending a "movement input" to our movement component here, which means that our movement component
-	// will process this vector this tick, turning it into an acceleration (more or less -- look at CharacterMovementComponent::PhysWalking for the 
-	// the full horror that is Unreal movement).
-	// NOTE: The vector pass in below will be truncated to magnitude 1 if the magnitude > 1
-	AddMovementInput(FVector::RightVector, MoveScale);
-
-	//This is super duper important to remember! Otherwise a whole bunch of basic stuff doesn't work.
 	Super::Tick(DeltaSeconds);
 }
