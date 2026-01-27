@@ -6,7 +6,6 @@
 #include "GAPathComponent.generated.h"
 
 
-
 USTRUCT(BlueprintType)
 struct FPathStep
 {
@@ -102,5 +101,12 @@ class UGAPathComponent : public UActorComponent
 
 	UPROPERTY(BlueprintReadWrite)
 	TArray<FPathStep> Steps;
-
+	
+private:
+	//helper of AStar implementation
+	float Heuristic(const FCellRef& Cell) const;
+	void GetNeighbors(const FCellRef& Cell, TArray<FCellRef>& StepsOut) const;
+	void ReconstructPath(const TMap<FCellRef, FCellRef>& CameFrom, const FCellRef& StartCell, 
+						 const FCellRef& CurrentCell, TArray<FPathStep>& OutSteps) const;
+	bool LineTrace(const FCellRef& StartCell, const FCellRef& EndCell) const;
 };
