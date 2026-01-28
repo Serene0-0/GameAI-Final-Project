@@ -65,10 +65,23 @@ APawn* UGAPathComponent::GetOwnerPawn()
 
 void UGAPathComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
+	if (GetOwnerPawn() == NULL)
+	{
+		return;
+	}
+
+	bool Valid = false;
 	if (bDestinationValid)
 	{
 		RefreshPath();
-
+		Valid = true;
+	}
+	else if (bDistanceMapPathValid)
+	{
+		Valid = true;
+	}
+	if (Valid)
+	{
 		if (State == GAPS_Active)
 		{
 			FollowPath();
@@ -139,6 +152,34 @@ EGAPathState UGAPathComponent::AStar(const FVector& StartPoint, TArray<FPathStep
 	// See the comment in GAPathComponent above the EGAPathState enum
 	return GAPS_Active;
 }
+
+bool UGAPathComponent::Dijkstra(const FVector& StartPoint, FGAGridMap& DistanceMapOut) const
+{
+	// Assignment 3 Part 3-1: implement Dijkstra's algorithm to fill out the distance map
+	return false;
+}
+
+bool UGAPathComponent::BuidPathFromDistanceMap(const FVector& StartPoint, const FCellRef& StartCellRef, const FGAGridMap& DistanceMap)
+{
+	bDistanceMapPathValid = false;
+
+	// Assignment 3 Part 3-2: reconstruct a path from the distance map
+
+	// Remember to smooth the path as well, using your existing smoothing code
+
+	// Set this to true when you've successfully built the path
+	// bDistanceMapPathValid = true;
+
+	if (bDistanceMapPathValid)
+	{
+		// once you have built the path (i.e. filled in the Steps array in the GAPathComponent), set the path component's state to GAPS_Active
+		// This will cause 
+		State = GAPS_Active;
+	}
+
+	return bDistanceMapPathValid;
+}
+
 
 EGAPathState UGAPathComponent::SmoothPath(const FVector& StartPoint, const TArray<FPathStep>& UnsmoothedSteps, TArray<FPathStep>& SmoothedStepsOut) const
 {

@@ -157,8 +157,6 @@ bool AGAGridActor::IsCellRefInBounds(const FCellRef& CellRef) const
 	return (CellRef.X >= 0) && (CellRef.X < XCount) && (CellRef.Y >= 0) && (CellRef.Y < YCount);
 }
 
-
-
 FVector2D AGAGridActor::GetCellGridSpacePosition(const FCellRef& CellRef) const
 {
 	float HalfScale = 0.5f * CellScale;
@@ -208,7 +206,6 @@ FVector AGAGridActor::TransformNormalizedGridSpaceToWorld(const FVector2D& Unifo
 
 	return GridTransform.TransformPosition(LocalPoint3D);
 }
-
 
 
 ECellData AGAGridActor::GetCellData(const FCellRef &CellRef) const
@@ -606,6 +603,21 @@ bool AGAGridActor::RefreshDebugTexture()
 {
 	bool Result = false;
 
+	// Note: this is for debugging the map rendering
+	/*
+	{
+		FGridBox Box(XCount / 4, XCount - XCount / 4, YCount / 4, YCount - YCount / 4);
+		DebugGridMap = FGAGridMap(this, Box, 0.0f);
+		for (int32 Y = Box.MinY; Y <= Box.MaxY; Y++)
+		{
+			for (int32 X = Box.MinX; X <= Box.MaxX; X++)
+			{
+				DebugGridMap.SetValue(FCellRef(X, Y), float((X-Box.MinX) + (Y - Box.MinY)));
+			}
+		}
+	}
+	*/
+
 	if (DebugMeshComponent)
 	{
 		// create a new texture
@@ -621,20 +633,56 @@ bool AGAGridActor::RefreshDebugTexture()
 
 		int32 Index = 0;
 
-		for (int32 Y = 0; Y < YCount; Y++)
+		if (DebugGridMap.IsValid())
 		{
-			for (int32 X = 0; X < XCount; X ++)
+			float MaxValue;
+			DebugGridMap.GetMaxValue(MaxValue, BIG_NUMBER);
+
+			for (int32 Y = 0; Y < YCount; Y++)
 			{
-				ECellData CellData = GetCellData(FCellRef(X, Y));
-				bool Traversable = EnumHasAllFlags(CellData, ECellData::CellDataTraversable);
-				uint8 Val = Traversable ? 255 : 0;
+				for (int32 X = 0; X < XCount; X++)
+				{
+					FCellRef CellRef(X, Y);
+					ECellData CellData = GetCellData(CellRef);
+					bool Traversable = EnumHasAllFlags(CellData, ECellData::CellDataTraversable);
 
-				RawImageData[Index] = Val;			// blue 
-				RawImageData[Index+1] = Val;		// green
-				RawImageData[Index+2] = Val;		// red
-				RawImageData[Index+3] = 255;		// alpha
+					float MapValue;
+					bool IsOnMap = DebugGridMap.GetValue(CellRef, MapValue);
+					int32 IntVal = 0;
+					if (IsOnMap)
+					{
+						IntVal = FMath::RoundToInt(255.0f * (MapValue / MaxValue));
+					}
 
-				Index += 4;
+					// Note: fade from blue to red as we approach the max value in the debug map
+
+					RawImageData[Index] = IsOnMap ? 255 - IntVal : 0;		// blue		Are we on the map or not?
+					RawImageData[Index + 1] = Traversable ? 50 : 0;			// green	Are we traversable or not?
+					RawImageData[Index + 2] = IntVal;						// red		The value
+					RawImageData[Index + 3] = 255;							// alpha
+
+					Index += 4;
+				}
+			}
+
+		}
+		else
+		{
+			for (int32 Y = 0; Y < YCount; Y++)
+			{
+				for (int32 X = 0; X < XCount; X++)
+				{
+					ECellData CellData = GetCellData(FCellRef(X, Y));
+					bool Traversable = EnumHasAllFlags(CellData, ECellData::CellDataTraversable);
+					uint8 Val = Traversable ? 255 : 0;
+
+					RawImageData[Index] = Val;			// blue 
+					RawImageData[Index + 1] = Val;		// green
+					RawImageData[Index + 2] = Val;		// red
+					RawImageData[Index + 3] = 255;		// alpha
+
+					Index += 4;
+				}
 			}
 		}
 

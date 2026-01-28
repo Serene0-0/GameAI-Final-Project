@@ -71,6 +71,12 @@ class UGAPathComponent : public UActorComponent
 
 	EGAPathState AStar(const FVector& StartPoint, TArray<FPathStep>& StepsOut) const;
 
+	// Fill the DistanceMap param with distance data based on the starting point and cell ref passed in
+	bool Dijkstra(const FVector& StartPoint, FGAGridMap& DistanceMapOut) const;
+
+	// Fill in the Steps array with steps that get me from the origin of the distance map (i.e. the cell that has distance 0) to the end point and end cell ref.
+	bool BuidPathFromDistanceMap(const FVector& EndPoint, const FCellRef& EndCellRef, const FGAGridMap& DistanceMap);
+
 	EGAPathState SmoothPath(const FVector& StartPoint, const TArray<FPathStep>& UnsmoothedSteps, TArray<FPathStep>& SmoothedStepsOut) const;
 
 	void FollowPath();
@@ -88,6 +94,9 @@ class UGAPathComponent : public UActorComponent
 
 	UPROPERTY(BlueprintReadOnly)
 	bool bDestinationValid;
+
+	UPROPERTY(BlueprintReadOnly)
+	bool bDistanceMapPathValid;
 
 	UPROPERTY(BlueprintReadOnly)
 	FVector Destination;
