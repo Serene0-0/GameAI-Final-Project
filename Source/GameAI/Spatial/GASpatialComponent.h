@@ -34,6 +34,9 @@ class UGASpatialComponent : public UActorComponent
 
 	UPROPERTY()
 	mutable TSoftObjectPtr<UGAPathComponent> PathComponentInternal;
+	
+	UPROPERTY()
+	FCellRef LastChosenCell;
 
 	UFUNCTION(BlueprintCallable)
 	AGAGridActor *GetGridActor() const;

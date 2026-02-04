@@ -218,8 +218,6 @@ void UGAPathComponent::GetNeighbors(const FCellRef& Cell, TArray<FCellRef>& Step
 }
 
 
-
-
 EGAPathState UGAPathComponent::AStar(const FVector& StartPoint, TArray<FPathStep>& StepsOut) const
 {
 	const AGAGridActor* Grid = GetGridActor();
@@ -391,23 +389,214 @@ bool UGAPathComponent::LineTrace(const FCellRef& StartCell, const FCellRef& EndC
 	return true;
 }
 
-bool UGAPathComponent::Dijkstra(const FVector& StartPoint, FGAGridMap& DistanceMapOut) const
+
+namespace
 {
-	// Assignment 3 Part 3-1: implement Dijkstra's algorithm to fill out the distance map
-	return false;
+	struct FDijkstraNode
+	{
+		FCellRef CellRef;
+		float Distance;
+		
+		FDijkstraNode() : CellRef(FCellRef::Invalid), Distance(0.0f) {}
+		FDijkstraNode(FCellRef Cell, float Dist) : CellRef(Cell), Distance(Dist) {}
+		
+		//min-heap comparator
+		bool operator<(const FDijkstraNode& Other) const
+		{
+			return Distance < Other.Distance;
+		}
+	};
 }
 
-bool UGAPathComponent::BuidPathFromDistanceMap(const FVector& StartPoint, const FCellRef& StartCellRef, const FGAGridMap& DistanceMap)
+
+bool UGAPathComponent::Dijkstra(const FVector& StartPoint, FGAGridMap& DistanceMapOut) const
+{
+	const AGAGridActor* Grid = GetGridActor();
+	
+	FCellRef StartCell = Grid->GetCellRef(StartPoint);
+	if (!StartCell.IsValid())
+	{
+		return false;
+	}
+	
+	// initialize distance map
+	DistanceMapOut = FGAGridMap(Grid, FLT_MAX);
+	
+	// initialize data structure
+	TArray<FDijkstraNode> OpenSet;
+	TSet<FCellRef> VisitedSet;
+	TArray<FCellRef> Neighbors;
+	
+	// push the StartCell into the data structure
+	OpenSet.HeapPush(FDijkstraNode(StartCell, 0.0f));
+	DistanceMapOut.SetValue(StartCell, 0.0f);
+	
+	while (!OpenSet.IsEmpty())
+	{
+		// extract the shortest-distance cell
+		FDijkstraNode CurrentNode;
+		OpenSet.HeapPop(CurrentNode);
+		
+		if (VisitedSet.Contains(CurrentNode.CellRef))
+		{
+			continue;
+		}
+		// marked visited cell
+		VisitedSet.Add(CurrentNode.CellRef);
+		// get all neighbors of the cell
+		GetNeighbors(CurrentNode.CellRef, Neighbors);
+		
+		// iterate all neighbor
+		for (const FCellRef& Cell : Neighbors)
+		{
+			// check if the cell is in the grid
+			if (!Grid->IsCellRefInBounds(Cell))
+			{
+				continue;
+			}
+			
+			// check the traversability
+			ECellData Flags = Grid->GetCellData(Cell);
+			if (!EnumHasAllFlags(Flags, ECellData::CellDataTraversable))
+			{
+				continue;
+			}
+			
+			// check if the cell is visited
+			if (VisitedSet.Contains(Cell))
+			{
+				continue;
+			}
+			
+			// calculate the cost
+			int32 D_X = FMath::Abs(Cell.X - CurrentNode.CellRef.X);
+			int32 D_Y = FMath::Abs(Cell.Y - CurrentNode.CellRef.Y);
+			bool isDiagonal = (D_X != 0) && (D_Y != 0);
+			float Cost = isDiagonal ? FMath::Sqrt(2.0f) : 1.0f;
+			float NewDistance = CurrentNode.Distance + Cost;
+			
+			// extract currentDistance of the neighbor
+			float CurrentDistance = FLT_MAX;
+			DistanceMapOut.GetValue(Cell, CurrentDistance);
+			
+			// update distance if it is shorter
+			if (NewDistance < CurrentDistance)
+			{
+				DistanceMapOut.SetValue(Cell, NewDistance);
+				OpenSet.HeapPush(FDijkstraNode(Cell, NewDistance));
+			}
+		}
+	}
+
+	return true;
+}
+
+bool UGAPathComponent::BuildPathFromDistanceMap(const FVector& EndPoint, const FCellRef& EndCellRef, 
+												const FGAGridMap& DistanceMap)
 {
 	bDistanceMapPathValid = false;
+	
+	const AGAGridActor* Grid = GetGridActor();
+	
+	if (!EndCellRef.IsValid())
+	{
+		return false;
+	}
+	
+	// extract distance of start cell
+	float StartDistance = FLT_MAX;
+	if (!DistanceMap.GetValue(EndCellRef, StartDistance))
+	{
+		return false;
+	}
+	
+	// if the start cell is the destination, no need to move
+	if (StartDistance < KINDA_SMALL_NUMBER)
+	{
+		bDistanceMapPathValid = true;
+		State = GAPS_Finished;
+		Steps.Empty();
+		return true;
+	}
+	
+	// reconstruct unsmoothed path
+	TArray<FPathStep> UnsmoothedSteps;
+	TArray<FCellRef> Neighbors;
+	
+	FCellRef CurrentCell = EndCellRef;
+	float CurrentDistance = StartDistance;
+	
+	// extract the shortest-distance neighbor each iteration
+	while (CurrentDistance > KINDA_SMALL_NUMBER)
+	{
+		GetNeighbors(CurrentCell, Neighbors);
+		
+		FCellRef BestNeighbor = FCellRef::Invalid;
+		float ShortestDistance = CurrentDistance;
+		
+		for (const FCellRef& Cell : Neighbors)
+		{
+			// check if the cell is in the grid
+			if (!Grid->IsCellRefInBounds(Cell))
+			{
+				continue;
+			}
+			
+			// check the traversability
+			ECellData Flags = Grid->GetCellData(Cell);
+			if (!EnumHasAllFlags(Flags, ECellData::CellDataTraversable))
+			{
+				continue;
+			}
+			
+			// extract neighbor distance
+			float NeighborDistance = FLT_MAX;
+			if (!DistanceMap.GetValue(Cell, NeighborDistance))
+			{
+				continue;
+			}
 
-	// Assignment 3 Part 3-2: reconstruct a path from the distance map
+			// update best cell & shortest distance
+			if (NeighborDistance < ShortestDistance)
+			{
+				ShortestDistance = NeighborDistance;
+				BestNeighbor = Cell;
+			}
+		}
+		
+		// no valid neighbor, fail to build
+		if (!BestNeighbor.IsValid())
+		{
+			return false;
+		}
+		
+		// add best neighbor cell to PathStep
+		FVector CellPosition = Grid->GetCellPosition(BestNeighbor);
+		FPathStep CurrentStep;
+		CurrentStep.Set(CellPosition, BestNeighbor);
+		UnsmoothedSteps.Add(CurrentStep);
+		
+		// to next cell
+		CurrentCell = BestNeighbor;
+		CurrentDistance = ShortestDistance;
+	}
 
-	// Remember to smooth the path as well, using your existing smoothing code
+	if (UnsmoothedSteps.Num() == 0)
+	{
+		return false;
+	}
+	
+	// smooth paths
+	Steps.Empty();
+	EGAPathState SmoothedState = SmoothPath(EndPoint, UnsmoothedSteps, Steps);
+	
+	if (SmoothedState != GAPS_Active)
+	{
+		return false;
+	}
 
-	// Set this to true when you've successfully built the path
-	// bDistanceMapPathValid = true;
-
+	bDistanceMapPathValid = true;
+	
 	if (bDistanceMapPathValid)
 	{
 		// once you have built the path (i.e. filled in the Steps array in the GAPathComponent), set the path component's state to GAPS_Active

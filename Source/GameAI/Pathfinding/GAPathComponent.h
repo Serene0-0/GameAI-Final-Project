@@ -74,7 +74,7 @@ class UGAPathComponent : public UActorComponent
 	bool Dijkstra(const FVector& StartPoint, FGAGridMap& DistanceMapOut) const;
 
 	// Fill in the Steps array with steps that get me from the origin of the distance map (i.e. the cell that has distance 0) to the end point and end cell ref.
-	bool BuidPathFromDistanceMap(const FVector& EndPoint, const FCellRef& EndCellRef, const FGAGridMap& DistanceMap);
+	bool BuildPathFromDistanceMap(const FVector& EndPoint, const FCellRef& EndCellRef, const FGAGridMap& DistanceMap);
 
 	EGAPathState SmoothPath(const FVector& StartPoint, const TArray<FPathStep>& UnsmoothedSteps, TArray<FPathStep>& SmoothedStepsOut) const;
 
