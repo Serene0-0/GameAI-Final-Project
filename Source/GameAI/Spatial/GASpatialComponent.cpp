@@ -152,7 +152,7 @@ bool UGASpatialComponent::ChoosePosition(bool PathfindToPosition, bool Debug)
 		FVector PlayerPosition = PlayerPawn->GetActorLocation();
 		FVector AIPosition = OwnerPawn->GetActorLocation();
 		
-		bool bMap = PathComponent->Dijkstra(PlayerPosition, DistanceMap);
+		bool bMap = PathComponent->Dijkstra(AIPosition, DistanceMap);
 		if (!bMap)
 		{
 			return false;
@@ -194,16 +194,6 @@ bool UGASpatialComponent::ChoosePosition(bool PathfindToPosition, bool Debug)
 					continue;
 				}
 				
-				float CellDistance = FLT_MAX;
-				if (!ScoreMap.GetValue(CellRef, CellDistance))
-				{
-					continue;
-				}
-				
-				if (CellDistance >= FLT_MAX)
-				{
-					continue;
-				}
 				
 				float Score = 0.0f;
 				if (ScoreMap.GetValue(CellRef, Score) && Score > BestScore)
@@ -381,8 +371,7 @@ void UGASpatialComponent::EvaluateLayer(const FFunctionLayer& Layer, const FGAGr
 					}
 				case SO_Multiply:
 					{
-						float Base = (CurrentScore == 0.0f ? 1.0f : CurrentScore);
-						NewScore = Base * ModifiedValue;
+						NewScore = CurrentScore * ModifiedValue;
 						break;
 					}
 				default:
