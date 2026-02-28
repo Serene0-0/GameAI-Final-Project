@@ -79,6 +79,9 @@ class UGAPathComponent : public UActorComponent
 	EGAPathState SmoothPath(const FVector& StartPoint, const TArray<FPathStep>& UnsmoothedSteps, TArray<FPathStep>& SmoothedStepsOut) const;
 
 	void FollowPath();
+	
+	UFUNCTION(BlueprintCallable)
+	void ClearPath();
 
 	// Parameters ------------------------
 
@@ -110,6 +113,9 @@ class UGAPathComponent : public UActorComponent
 
 	UPROPERTY(BlueprintReadWrite)
 	TArray<FPathStep> Steps;
+	
+	UPROPERTY()
+	bool bChargePlayerMode = false;
 	
 private:
 	//helper of AStar implementation

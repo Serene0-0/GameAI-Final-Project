@@ -494,7 +494,12 @@ bool UGAPathComponent::Dijkstra(const FVector& StartPoint, FGAGridMap& DistanceM
 bool UGAPathComponent::BuildPathFromDistanceMap(const FVector& EndPoint, const FCellRef& EndCellRef, 
 												const FGAGridMap& DistanceMap)
 {
+	if (bChargePlayerMode)
+	{
+		return false;
+	}
 	bDistanceMapPathValid = false;
+	bDestinationValid = false;
 	
 	const AGAGridActor* Grid = GetGridActor();
 	
@@ -710,6 +715,9 @@ void UGAPathComponent::FollowPath()
 
 EGAPathState UGAPathComponent::SetDestination(const FVector &DestinationPoint)
 {
+	bChargePlayerMode = true;
+	bDistanceMapPathValid = false;
+	
 	Destination = DestinationPoint;
 
 	State = GAPS_Invalid;
@@ -729,4 +737,13 @@ EGAPathState UGAPathComponent::SetDestination(const FVector &DestinationPoint)
 	}
 
 	return State;
+}
+
+void UGAPathComponent::ClearPath()
+{
+	bDestinationValid = false;
+	bDistanceMapPathValid = false;
+	bChargePlayerMode = false;
+	State = GAPS_None;
+	Steps.Empty();
 }
