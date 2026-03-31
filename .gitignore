@@ -17,3 +17,9 @@ Saved/
 # OS
 .DS_Store
 Thumbs.db
+
+# Xcode
+*.xcworkspace
+*.xcuserdata
+*.xcuserstate
+*.xcsettings
