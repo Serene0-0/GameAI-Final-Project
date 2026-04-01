@@ -15,6 +15,9 @@
 #include "TimerManager.h"
 #include "Engine/LocalPlayer.h"
 #include "CombatPlayerController.h"
+#include "Perception/AIPerceptionStimuliSourceComponent.h"
+#include "Perception/AISense_Sight.h"
+#include "Perception/AISense_Hearing.h"
 
 ACombatCharacter::ACombatCharacter()
 {
@@ -47,8 +50,16 @@ ACombatCharacter::ACombatCharacter()
 	LifeBar = CreateDefaultSubobject<UWidgetComponent>(TEXT("LifeBar"));
 	LifeBar->SetupAttachment(RootComponent);
 
-	// set the player tag
+	// set the player tag — required by CombatEnemy::DoAttackTrace and HandlePerceptionUpdated
 	Tags.Add(FName("Player"));
+
+	// Register this character as a perceivable source so AI hunters can detect it.
+	// Sight detection is automatic once registered.
+	// Hearing requires calling UAISense_Hearing::ReportNoiseEvent() at the shoot location.
+	AIPerceptionStimuliSource = CreateDefaultSubobject<UAIPerceptionStimuliSourceComponent>(TEXT("AIPerceptionStimuliSource"));
+	AIPerceptionStimuliSource->bAutoRegister = true;
+	AIPerceptionStimuliSource->RegisterForSense(UAISense_Sight::StaticClass());
+	AIPerceptionStimuliSource->RegisterForSense(UAISense_Hearing::StaticClass());
 }
 
 void ACombatCharacter::Move(const FInputActionValue& Value)
@@ -254,6 +265,17 @@ void ACombatCharacter::AttackMontageEnded(UAnimMontage* Montage, bool bInterrupt
 
 void ACombatCharacter::DoAttackTrace(FName DamageSourceBone)
 {
+	// Generate a noise event so AI hunters with hearing can detect this attack.
+	// Loudness 1.0 means full hearing-radius range; reduce for quieter attacks.
+	UAISense_Hearing::ReportNoiseEvent(
+		GetWorld(),
+		GetActorLocation(),
+		1.0f,
+		this,
+		0.0f,
+		FName("Attack")
+	);
+
 	// sweep for objects in front of the character to be hit by the attack
 	TArray<FHitResult> OutHits;
 

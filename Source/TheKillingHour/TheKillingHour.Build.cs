@@ -17,6 +17,8 @@ public class TheKillingHour : ModuleRules
 			"AIModule",
 			"StateTreeModule",
 			"GameplayStateTreeModule",
+			"NavigationSystem",
+			"GameplayTasks",
 			"UMG",
 			"Slate"
 		});

@@ -15,6 +15,7 @@ class UInputAction;
 struct FInputActionValue;
 class UCombatLifeBar;
 class UWidgetComponent;
+class UAIPerceptionStimuliSourceComponent;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogCombatCharacter, Log, All);
 
@@ -42,6 +43,15 @@ class ACombatCharacter : public ACharacter, public ICombatAttacker, public IComb
 	/** Life bar widget component */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
 	UWidgetComponent* LifeBar;
+
+	/**
+	 *	Registers this character as a perceivable stimulus source so AI hunters
+	 *	can detect it via UAIPerceptionComponent (sight and hearing).
+	 *	Sight is automatic once registered; hearing requires calling
+	 *	UAISense_Hearing::ReportNoiseEvent() at the shoot location.
+	 */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Components", meta = (AllowPrivateAccess = "true"))
+	UAIPerceptionStimuliSourceComponent* AIPerceptionStimuliSource;
 	
 protected:
 
