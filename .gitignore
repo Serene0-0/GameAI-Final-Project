@@ -24,4 +24,6 @@ Thumbs.db
 *.xcuserstate
 *.xcsettings
 
+Content/
+
 Docs/
