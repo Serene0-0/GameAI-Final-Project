@@ -17,6 +17,9 @@ class UAnimMontage;
 /** Completed attack animation delegate for StateTree */
 DECLARE_DELEGATE(FOnEnemyAttackCompleted);
 
+/** Shoot completed delegate for StateTree — fires after ExecuteShot() resolves */
+DECLARE_DELEGATE(FOnEnemyShootCompleted);
+
 /** Landed delegate for StateTree */
 DECLARE_DELEGATE(FOnEnemyLanded);
 
@@ -126,6 +129,31 @@ protected:
 	/** Number of charge animation loop currently playing */
 	int32 CurrentChargeLoop = 0;
 
+	/** Damage dealt by a single enemy gunshot */
+	UPROPERTY(EditAnywhere, Category="Shooting", meta = (ClampMin = 0, ClampMax = 100))
+	float ShootDamage = 1.0f;
+
+	/** Maximum hitscan range of the enemy's gun (cm) */
+	UPROPERTY(EditAnywhere, Category="Shooting", meta = (ClampMin = 100, ClampMax = 100000, Units = "cm"))
+	float ShootRange = 8000.0f;
+
+	/** Knockback impulse applied to the player when hit */
+	UPROPERTY(EditAnywhere, Category="Shooting", meta = (ClampMin = 0, ClampMax = 2000, Units = "cm/s"))
+	float ShootKnockbackImpulse = 150.0f;
+
+	/**
+	 *  Time the enemy "aims" before firing.
+	 *  Gives the player a visible tell and reaction window before being hit.
+	 */
+	UPROPERTY(EditAnywhere, Category="Shooting", meta = (ClampMin = 0.0f, ClampMax = 5.0f, Units = "s"))
+	float AimTime = 0.4f;
+
+	/** Pending shoot target set while aiming */
+	TWeakObjectPtr<AActor> AimTarget;
+
+	/** Timer that fires after AimTime to execute the actual shot */
+	FTimerHandle AimTimerHandle;
+
 	/** Time to wait before removing this character from the level after it dies */
 	UPROPERTY(EditAnywhere, Category="Death")
 	float DeathRemovalTime = 5.0f;
@@ -146,6 +174,9 @@ public:
 	/** Attack completed internal delegate to notify StateTree tasks */
 	FOnEnemyAttackCompleted OnAttackCompleted;
 
+	/** Shoot completed internal delegate to notify StateTree tasks — fires after ExecuteShot() */
+	FOnEnemyShootCompleted OnShootCompleted;
+
 	/** Landed internal delegate to notify StateTree tasks. We use this instead of the built-in Landed delegate so we can bind to a Lambda in StateTree tasks */
 	FOnEnemyLanded OnEnemyLanded;
 
@@ -154,6 +185,14 @@ public:
 	FOnEnemyDied OnEnemyDied;
 
 public:
+
+	/**
+	 *  Starts an aim-then-fire sequence at the given target.
+	 *  Call this from BT_Hunter when the enemy has LOS and is within range.
+	 *  The actual shot fires after AimTime seconds; LOS is re-checked before impact.
+	 */
+	UFUNCTION(BlueprintCallable, Category="AI|Shooting")
+	void DoAIShoot(AActor* Target);
 
 	/** Performs an AI-initiated combo attack. Number of hits will be decided by this character */
 	void DoAIComboAttack();
@@ -218,9 +257,21 @@ public:
 
 protected:
 
+	/** Fires the actual hitscan shot after the aim timer expires */
+	void ExecuteShot();
+
 	/** Blueprint handler to play damage received effects */
 	UFUNCTION(BlueprintImplementableEvent, Category="Combat")
 	void ReceivedDamage(float Damage, const FVector& ImpactPoint, const FVector& DamageDirection);
+
+	/**
+	 *  Called after each shot attempt.
+	 *  bHit — whether the shot connected with a damageable actor.
+	 *  HitLocation — world position of the impact (or trace end if missed).
+	 *  Override in Blueprint to play muzzle flash, sound, decals, etc.
+	 */
+	UFUNCTION(BlueprintImplementableEvent, Category="Combat")
+	void BP_OnEnemyShoot(bool bHit, const FVector& HitLocation);
 
 protected:
 

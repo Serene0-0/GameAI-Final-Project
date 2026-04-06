@@ -106,6 +106,8 @@ void ACombatAIController::HandlePerceptionUpdated(const TArray<AActor*>& Updated
 
 		// ── Write to Blackboard 
 
+		BB->SetValueAsBool(BB_bPlayerVisible, bIsVisible);
+
 		if (bIsVisible)
 		{
 			// Update last known location every frame we can see the player

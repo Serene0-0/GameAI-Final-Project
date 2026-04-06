@@ -197,6 +197,49 @@ struct FStateTreeWaitForLandingTask : public FStateTreeTaskCommonBase
 ////////////////////////////////////////////////////////////////////
 
 /**
+ *  Instance data struct for the Shoot StateTree task
+ */
+USTRUCT()
+struct FStateTreeShootInstanceData
+{
+	GENERATED_BODY()
+
+	/** Enemy character that will fire the shot */
+	UPROPERTY(EditAnywhere, Category = Context)
+	TObjectPtr<ACombatEnemy> Character;
+
+	/** Actor to shoot at — bind this to the TargetPlayerCharacter output of GetPlayerInfo */
+	UPROPERTY(EditAnywhere, Category = Input)
+	TObjectPtr<AActor> Target;
+};
+
+/**
+ *  StateTree task to fire a ranged shot at a target.
+ *  Starts the aim timer via DoAIShoot(), then waits for OnShootCompleted
+ *  before transitioning out (mirrors the ComboAttack / OnAttackCompleted pattern).
+ */
+USTRUCT(meta=(DisplayName="Shoot At Target", Category="Combat"))
+struct FStateTreeShootTask : public FStateTreeTaskCommonBase
+{
+	GENERATED_BODY()
+
+	using FInstanceDataType = FStateTreeShootInstanceData;
+	virtual const UStruct* GetInstanceDataType() const override { return FInstanceDataType::StaticStruct(); }
+
+	/** Starts the aim timer and binds the completion delegate */
+	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
+
+	/** Unbinds the completion delegate on exit */
+	virtual void ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const override;
+
+#if WITH_EDITOR
+	virtual FText GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting = EStateTreeNodeFormatting::Text) const override;
+#endif
+};
+
+////////////////////////////////////////////////////////////////////
+
+/**
  *  Instance data struct for the Face Towards Actor StateTree task
  */
 USTRUCT()

@@ -11,6 +11,9 @@ Saved/
 *.VC.db
 *.VC.opendb
 
+# Visual Studio
+.vs/
+
 # Rider
 .idea/
 
@@ -25,3 +28,10 @@ Thumbs.db
 *.xcsettings
 
 Docs/
+
+# secrets
+.env
+.env.*
+*.secret
+*.key
+

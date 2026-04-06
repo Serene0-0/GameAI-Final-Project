@@ -42,6 +42,71 @@ ACombatEnemy::ACombatEnemy()
 	CurrentHP = MaxHP;
 }
 
+void ACombatEnemy::DoAIShoot(AActor* Target)
+{
+	if (!Target || CurrentHP <= 0.0f)
+	{
+		return;
+	}
+
+	// Store target and start the aim timer; the shot fires in ExecuteShot()
+	AimTarget = Target;
+	GetWorld()->GetTimerManager().SetTimer(
+		AimTimerHandle,
+		this,
+		&ACombatEnemy::ExecuteShot,
+		AimTime,
+		false
+	);
+}
+
+void ACombatEnemy::ExecuteShot()
+{
+	AActor* Target = AimTarget.Get();
+	if (!Target || CurrentHP <= 0.0f)
+	{
+		return;
+	}
+
+	// Shoot from eye level so the trace clears the capsule
+	FVector EyeLocation;
+	FRotator EyeRotation;
+	GetActorEyesViewPoint(EyeLocation, EyeRotation);
+
+	const FVector TargetCenter = Target->GetActorLocation();
+	const FVector Direction    = (TargetCenter - EyeLocation).GetSafeNormal();
+	const FVector TraceEnd     = EyeLocation + Direction * ShootRange;
+
+	FHitResult HitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+
+	const bool bHit = GetWorld()->LineTraceSingleByChannel(
+		HitResult,
+		EyeLocation,
+		TraceEnd,
+		ECC_Pawn,
+		QueryParams
+	);
+
+	const FVector ImpactPoint = bHit ? HitResult.ImpactPoint : TraceEnd;
+
+	if (bHit)
+	{
+		ICombatDamageable* Damageable = Cast<ICombatDamageable>(HitResult.GetActor());
+		if (Damageable && HitResult.GetActor()->ActorHasTag(FName("Player")))
+		{
+			const FVector Impulse = Direction * ShootKnockbackImpulse;
+			Damageable->ApplyDamage(ShootDamage, this, ImpactPoint, Impulse);
+		}
+	}
+
+	BP_OnEnemyShoot(bHit, ImpactPoint);
+
+	// notify the StateTree that the shoot sequence is done
+	OnShootCompleted.ExecuteIfBound();
+}
+
 void ACombatEnemy::DoAIComboAttack()
 {
 	// ignore if we're already playing an attack animation
@@ -231,6 +296,11 @@ void ACombatEnemy::ApplyDamage(float Damage, AActor* DamageCauser, const FVector
 
 void ACombatEnemy::HandleDeath()
 {
+	// cancel any pending shot so the enemy can't fire from beyond the grave
+	GetWorld()->GetTimerManager().ClearTimer(AimTimerHandle);
+	AimTarget.Reset();
+	OnShootCompleted.Unbind();
+
 	// hide the life bar
 	LifeBar->SetHiddenInGame(true);
 
@@ -338,6 +408,6 @@ void ACombatEnemy::EndPlay(EEndPlayReason::Type EndPlayReason)
 {
 	Super::EndPlay(EndPlayReason);
 
-	// clear the death timer
+	GetWorld()->GetTimerManager().ClearTimer(AimTimerHandle);
 	GetWorld()->GetTimerManager().ClearTimer(DeathTimer);
 }

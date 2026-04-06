@@ -103,6 +103,11 @@ void ACombatCharacter::ToggleCamera()
 	BP_ToggleCamera();
 }
 
+void ACombatCharacter::ShootPressed()
+{
+	DoShoot();
+}
+
 void ACombatCharacter::DoMove(float Right, float Forward)
 {
 	if (GetController() != nullptr)
@@ -179,6 +184,62 @@ void ACombatCharacter::DoChargedAttackEnd()
 	{
 		CheckChargedAttack();
 	}
+}
+
+void ACombatCharacter::DoShoot()
+{
+	if (!GetController())
+	{
+		return;
+	}
+
+	// Broadcast a gunshot noise so AI hunters with hearing can detect this immediately.
+	// Loudness 1.0 = full HearingRadius range in CombatAIController.
+	UAISense_Hearing::ReportNoiseEvent(
+		GetWorld(),
+		GetActorLocation(),
+		1.0f,
+		this,
+		0.0f,
+		FName("Gunshot")
+	);
+
+	// Trace from camera centre forward so the shot goes where the player is aiming.
+	APlayerController* PC = Cast<APlayerController>(GetController());
+	FVector CameraLocation;
+	FRotator CameraRotation;
+	PC->GetPlayerViewPoint(CameraLocation, CameraRotation);
+
+	const FVector TraceStart = CameraLocation;
+	const FVector TraceEnd   = CameraLocation + CameraRotation.Vector() * ShootRange;
+
+	FHitResult HitResult;
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+
+	const bool bHit = GetWorld()->LineTraceSingleByChannel(
+		HitResult,
+		TraceStart,
+		TraceEnd,
+		ECC_Pawn,
+		QueryParams
+	);
+
+	const FVector ImpactPoint = bHit ? HitResult.ImpactPoint : TraceEnd;
+
+	if (bHit)
+	{
+		ICombatDamageable* Damageable = Cast<ICombatDamageable>(HitResult.GetActor());
+		if (Damageable)
+		{
+			// Knock away from the shot direction
+			const FVector Impulse = CameraRotation.Vector() * ShootKnockbackImpulse;
+			Damageable->ApplyDamage(ShootDamage, this, ImpactPoint, Impulse);
+			DealtDamage(ShootDamage, ImpactPoint);
+		}
+	}
+
+	BP_OnShoot(bHit, ImpactPoint);
 }
 
 void ACombatCharacter::ResetHP()
@@ -553,6 +614,12 @@ void ACombatCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCom
 
 		// Camera Side Toggle
 		EnhancedInputComponent->BindAction(ToggleCameraAction, ETriggerEvent::Triggered, this, &ACombatCharacter::ToggleCamera);
+
+		// Shoot
+		if (ShootAction)
+		{
+			EnhancedInputComponent->BindAction(ShootAction, ETriggerEvent::Started, this, &ACombatCharacter::ShootPressed);
+		}
 	}
 }
 

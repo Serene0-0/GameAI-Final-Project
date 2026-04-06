@@ -83,6 +83,10 @@ protected:
 	UPROPERTY(EditAnywhere, Category ="Input")
 	UInputAction* ToggleCameraAction;
 
+	/** Shoot Input Action */
+	UPROPERTY(EditAnywhere, Category ="Input")
+	UInputAction* ShootAction;
+
 	/** Max amount of HP the character will have on respawn */
 	UPROPERTY(EditAnywhere, Category="Damage", meta = (ClampMin = 0, ClampMax = 100))
 	float MaxHP = 5.0f;
@@ -102,6 +106,18 @@ protected:
 	/** Pointer to the life bar widget */
 	UPROPERTY(EditAnywhere, Category="Damage")
 	TObjectPtr<UCombatLifeBar> LifeBarWidget;
+
+	/** Damage dealt by a single player gunshot */
+	UPROPERTY(EditAnywhere, Category="Shooting", meta = (ClampMin = 0, ClampMax = 100))
+	float ShootDamage = 1.0f;
+
+	/** Maximum hitscan range of the player's gun (cm) */
+	UPROPERTY(EditAnywhere, Category="Shooting", meta = (ClampMin = 100, ClampMax = 100000, Units = "cm"))
+	float ShootRange = 10000.0f;
+
+	/** Knockback impulse applied to hit targets */
+	UPROPERTY(EditAnywhere, Category="Shooting", meta = (ClampMin = 0, ClampMax = 2000, Units = "cm/s"))
+	float ShootKnockbackImpulse = 200.0f;
 
 	/** Max amount of time that may elapse for a non-combo attack input to not be considered stale */
 	UPROPERTY(EditAnywhere, Category="Melee Attack", meta = (ClampMin = 0, ClampMax = 5, Units = "s"))
@@ -220,6 +236,9 @@ protected:
 	/** Called for toggle camera side input */
 	void ToggleCamera();
 
+	/** Called for shoot input */
+	void ShootPressed();
+
 	/** BP hook to animate the camera side switch */
 	UFUNCTION(BlueprintImplementableEvent, Category="Combat")
 	void BP_ToggleCamera();
@@ -249,6 +268,10 @@ public:
 	/** Handles charged attack released from either controls or UI interfaces */
 	UFUNCTION(BlueprintCallable, Category="Input")
 	virtual void DoChargedAttackEnd();
+
+	/** Fires a hitscan shot from the camera, reports a noise event, and applies damage */
+	UFUNCTION(BlueprintCallable, Category="Input")
+	virtual void DoShoot();
 
 protected:
 
@@ -315,6 +338,15 @@ protected:
 	/** Blueprint handler to play damage dealt effects */
 	UFUNCTION(BlueprintImplementableEvent, Category="Combat")
 	void DealtDamage(float Damage, const FVector& ImpactPoint);
+
+	/**
+	 *  Called after DoShoot() resolves.
+	 *  bHit — whether the shot struck a damageable actor.
+	 *  HitLocation — world position of the impact (or the trace end if nothing was hit).
+	 *  Override in Blueprint to play muzzle flash, sound, bullet decals, etc.
+	 */
+	UFUNCTION(BlueprintImplementableEvent, Category="Combat")
+	void BP_OnShoot(bool bHit, const FVector& HitLocation);
 
 	/** Blueprint handler to play damage received effects */
 	UFUNCTION(BlueprintImplementableEvent, Category="Combat")

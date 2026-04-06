@@ -198,6 +198,45 @@ FText FStateTreeWaitForLandingTask::GetDescription(const FGuid& ID, FStateTreeDa
 
 ////////////////////////////////////////////////////////////////////
 
+EStateTreeRunStatus FStateTreeShootTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
+{
+	if (Transition.ChangeType == EStateTreeStateChangeType::Changed)
+	{
+		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
+
+		// bind the completion delegate so the StateTree advances when the shot resolves
+		InstanceData.Character->OnShootCompleted.BindLambda(
+			[WeakContext = Context.MakeWeakExecutionContext()]()
+			{
+				WeakContext.FinishTask(EStateTreeFinishTaskType::Succeeded);
+			}
+		);
+
+		// start the aim-then-fire sequence (fires after AimTime seconds internally)
+		InstanceData.Character->DoAIShoot(InstanceData.Target);
+	}
+
+	return EStateTreeRunStatus::Running;
+}
+
+void FStateTreeShootTask::ExitState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
+{
+	if (Transition.ChangeType == EStateTreeStateChangeType::Changed)
+	{
+		FInstanceDataType& InstanceData = Context.GetInstanceData(*this);
+		InstanceData.Character->OnShootCompleted.Unbind();
+	}
+}
+
+#if WITH_EDITOR
+FText FStateTreeShootTask::GetDescription(const FGuid& ID, FStateTreeDataView InstanceDataView, const IStateTreeBindingLookup& BindingLookup, EStateTreeNodeFormatting Formatting) const
+{
+	return FText::FromString("<b>Shoot At Target</b>");
+}
+#endif // WITH_EDITOR
+
+////////////////////////////////////////////////////////////////////
+
 EStateTreeRunStatus FStateTreeFaceActorTask::EnterState(FStateTreeExecutionContext& Context, const FStateTreeTransitionResult& Transition) const
 {
 	// have we transitioned from another state?
