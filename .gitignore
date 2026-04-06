@@ -27,6 +27,14 @@ Thumbs.db
 *.xcuserstate
 *.xcsettings
 
+Content/Collections/
+Content/Developers/
+Content/DoorSounds/
+Content/Fab/
+Content/KitchenEquipmentOldBrokenDirty/
+Content/Maps/
+Content/OldWest/
+
 Docs/
 
 # secrets
