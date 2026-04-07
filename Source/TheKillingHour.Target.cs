@@ -3,9 +3,9 @@
 using UnrealBuildTool;
 using System.Collections.Generic;
 
-public class GameAITarget : TargetRules
+public class TheKillingHourTarget : TargetRules
 {
-	public GameAITarget(TargetInfo Target) : base(Target)
+	public TheKillingHourTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Game;
 		DefaultBuildSettings = BuildSettingsVersion.Latest;
