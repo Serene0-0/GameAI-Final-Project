@@ -38,6 +38,9 @@ AGAPlayerCharacter::AGAPlayerCharacter()
 	GetCharacterMovement()->MinAnalogWalkSpeed = 20.f;
 	GetCharacterMovement()->BrakingDecelerationWalking = 2000.f;
 	GetCharacterMovement()->BrakingDecelerationFalling = 1500.0f;
+	GetCharacterMovement()->NavAgentProps.bCanCrouch = true;
+	GetCharacterMovement()->CrouchedHalfHeight = 44.f;
+	GetCharacterMovement()->MaxWalkSpeedCrouched = 200.f;
 
 	// Create a camera boom (pulls in towards the player if there is a collision)
 	CameraBoom = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraBoom"));
@@ -86,6 +89,10 @@ void AGAPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 
 		// Looking
 		EnhancedInputComponent->BindAction(LookAction, ETriggerEvent::Triggered, this, &AGAPlayerCharacter::Look);
+		
+		// Couching
+		EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Started, this, &AGAPlayerCharacter::StartCrouch);
+		EnhancedInputComponent->BindAction(CrouchAction, ETriggerEvent::Completed, this, &AGAPlayerCharacter::StopCrouch);
 	}
 	else
 	{
@@ -127,4 +134,14 @@ void AGAPlayerCharacter::Look(const FInputActionValue& Value)
 		AddControllerYawInput(LookAxisVector.X);
 		AddControllerPitchInput(LookAxisVector.Y);
 	}
+}
+
+void AGAPlayerCharacter::StartCrouch()
+{
+	Crouch();
+}
+
+void AGAPlayerCharacter::StopCrouch()
+{
+	UnCrouch();
 }
