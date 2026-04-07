@@ -1,0 +1,16 @@
+/Intermediate/**
+/DerivedDataCache/**
+/Saved/**
+/.vs/**
+.idea/
+Binaries/
+
+Content/Collections/
+Content/Developers/
+Content/Fab/
+Content/OldWest/
+Content/Maps/
+!Content/Maps/TheKillingHour.umap
+
+Docs/
+

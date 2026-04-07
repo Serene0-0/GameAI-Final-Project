@@ -1,0 +1,127 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "GameAI/Grid/GAGridActor.h"
+#include "GAPathComponent.generated.h"
+
+
+USTRUCT(BlueprintType)
+struct FPathStep
+{
+	GENERATED_USTRUCT_BODY()
+
+	FPathStep() : Point(FVector::ZeroVector), CellRef(FCellRef::Invalid) {}
+
+	void Set(const FVector& PointIn, const FCellRef& CellRefIn)
+	{
+		Point = PointIn;
+		CellRef = CellRefIn;
+	}
+
+	UPROPERTY(BlueprintReadWrite)
+	FVector Point;
+
+	UPROPERTY(BlueprintReadWrite)
+	FCellRef CellRef;
+};
+
+// Note the UMeta -- DisplayName is just a nice way to show the name in the editor
+// This enumeration indicates the general status of the path in the path component
+UENUM(BlueprintType)
+enum EGAPathState
+{
+	GAPS_None			UMETA(DisplayName = "None"),				// no path has been requested
+	GAPS_Active			UMETA(DisplayName = "Active"),				// we are actively following a path
+	GAPS_Finished		UMETA(DisplayName = "Finished"),			// we've successfully moved to the end of the path. Yay!
+	GAPS_Invalid		UMETA(DisplayName = "Invalid"),				// pathfinding failed -- we couldn't find a way to the destination
+};
+
+
+// Our custom path following component, which will rely on the data
+// contained in the GridActor
+// Note the meta-specific "BlueprintSpawnableComponnet". This will allow us
+// to attach this component to any actor type in Blueprint. Otherwise it would
+// only be attachable in code.
+
+UCLASS(BlueprintType, Blueprintable, meta = (BlueprintSpawnableComponent))
+class UGAPathComponent : public UActorComponent
+{
+	GENERATED_UCLASS_BODY()
+
+	// Note just a cached pointer
+	UPROPERTY()
+	mutable TSoftObjectPtr<AGAGridActor> GridActor;
+
+	UFUNCTION(BlueprintCallable)
+	const AGAGridActor *GetGridActor() const;
+
+	// It is super easy to forget: this component will usually be attached to the CONTROLLER, not the pawn it's controlling
+	// A lot of times we want access to the pawn (e.g. when sending signals to its movement component).
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	APawn *GetOwnerPawn();
+
+
+	// State Update ------------------------
+
+	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+	EGAPathState RefreshPath();
+
+	EGAPathState AStar(const FVector& StartPoint, TArray<FPathStep>& StepsOut) const;
+
+	// Fill the DistanceMap param with distance data based on the starting point and cell ref passed in
+	bool Dijkstra(const FVector& StartPoint, FGAGridMap& DistanceMapOut) const;
+
+	// Fill in the Steps array with steps that get me from the origin of the distance map (i.e. the cell that has distance 0) to the end point and end cell ref.
+	bool BuildPathFromDistanceMap(const FVector& EndPoint, const FCellRef& EndCellRef, const FGAGridMap& DistanceMap);
+
+	EGAPathState SmoothPath(const FVector& StartPoint, const TArray<FPathStep>& UnsmoothedSteps, TArray<FPathStep>& SmoothedStepsOut) const;
+
+	void FollowPath();
+	
+	UFUNCTION(BlueprintCallable)
+	void ClearPath();
+
+	// Parameters ------------------------
+
+	// When I'm within this distance of my destination, my path is considered finished.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	float ArrivalDistance;
+
+	// Destination ------------------------
+
+	UFUNCTION(BlueprintCallable)
+	EGAPathState SetDestination(const FVector &DestinationPoint);
+
+	UPROPERTY(BlueprintReadOnly)
+	bool bDestinationValid;
+
+	UPROPERTY(BlueprintReadOnly)
+	bool bDistanceMapPathValid;
+
+	UPROPERTY(BlueprintReadOnly)
+	FVector Destination;
+
+	UPROPERTY(BlueprintReadOnly)
+	FCellRef DestinationCell;
+
+	// State ------------------------
+
+	UPROPERTY(BlueprintReadOnly)
+	TEnumAsByte<EGAPathState> State;
+
+	UPROPERTY(BlueprintReadWrite)
+	TArray<FPathStep> Steps;
+	
+	UPROPERTY()
+	bool bChargePlayerMode = false;
+	
+private:
+	//helper of AStar implementation
+	float Heuristic(const FCellRef& Cell) const;
+	void GetNeighbors(const FCellRef& Cell, TArray<FCellRef>& StepsOut) const;
+	void ReconstructPath(const TMap<FCellRef, FCellRef>& CameFrom, const FCellRef& StartCell, 
+						 const FCellRef& CurrentCell, TArray<FPathStep>& OutSteps) const;
+	bool LineTrace(const FCellRef& StartCell, const FCellRef& EndCell) const;
+};
