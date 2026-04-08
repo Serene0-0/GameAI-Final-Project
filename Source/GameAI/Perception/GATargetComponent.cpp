@@ -199,7 +199,7 @@ void UGATargetComponent::OccupancyMapUpdate()
 							{
 								FVector CellPoint = Grid->GetCellPosition(Cell);
 								CellPoint.Z += Offset;
-								if (PerceptionComponent->HasClearLOS(Owner, CellPoint))
+								if (PerceptionComponent->HasClearLOS(Owner, CellPoint, false))
 								{
 									// it's visible!
 									VisibilityMap.SetValue(Cell, 1.0f);

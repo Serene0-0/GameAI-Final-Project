@@ -92,6 +92,19 @@ class UGAPerceptionComponent : public UActorComponent
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	FVisionParameters VisionParameters;
 
+	// Whether this perceiver's vision distance is affected by lighting around the target point.
+	// For example, NightHunter can disable this.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	bool bAffectedByLight;
+
+	// Vision distance multiplier used when the target point is considered in darkness.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	float DarkVisionMultiplier;
+
+	// Radius around a light actor considered as "lit" for simple darkness checks.
+	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	float LightDetectionRadius;
+
 	// A map from TargetComponent's TargetGuid to target data
 	// This allows each individual perceiving AI to store a little chunk of data for each perceivable target.
 
@@ -99,7 +112,7 @@ class UGAPerceptionComponent : public UActorComponent
 	TMap<FGuid, FTargetView> TargetMap;
 
 
-	bool HasClearLOS(const AActor* TargetActor, const FVector& TargetPoint) const;
+	bool HasClearLOS(const AActor* TargetActor, const FVector& TargetPoint, bool bApplyLightPenalty = true) const;
 	void UpdateAllTargetViews(float DeltaTime);
 	void UpdateTargetView(UGATargetComponent* TargetComponent, float DeltaTime);
 

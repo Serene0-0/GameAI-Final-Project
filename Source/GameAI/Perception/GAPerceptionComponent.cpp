@@ -1,6 +1,46 @@
 #include "GAPerceptionComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "GAPerceptionSystem.h"
+#include "Engine/Light.h"
+#include "Components/LightComponent.h"
+
+namespace
+{
+	bool IsPointLitSimple(UWorld* World, const FVector& Point, float LightDetectionRadius)
+	{
+		if (!World || LightDetectionRadius <= 0.0f)
+		{
+			return false;
+		}
+
+		TArray<AActor*> LightActors;
+		UGameplayStatics::GetAllActorsOfClass(World, ALight::StaticClass(), LightActors);
+
+		const float RadiusSq = LightDetectionRadius * LightDetectionRadius;
+		for (AActor* LightActor : LightActors)
+		{
+			ALight* Light = Cast<ALight>(LightActor);
+			if (!Light)
+			{
+				continue;
+			}
+
+			const ULightComponent* LightComponent = Light->GetLightComponent();
+			if (!LightComponent || !LightComponent->IsVisible() || (LightComponent->Intensity <= 0.0f))
+			{
+				continue;
+			}
+
+			const float DistSq = FVector::DistSquared(Point, Light->GetActorLocation());
+			if (DistSq <= RadiusSq)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+}
 
 UGAPerceptionComponent::UGAPerceptionComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -10,6 +50,9 @@ UGAPerceptionComponent::UGAPerceptionComponent(const FObjectInitializer& ObjectI
 
 	TimeToAcknowledge = 2.0f;
 	TimeToLose = 0.5f;
+	bAffectedByLight = true;
+	DarkVisionMultiplier = 0.3f;
+	LightDetectionRadius = 500.0f;
 }
 
 
@@ -200,7 +243,7 @@ const FTargetView* UGAPerceptionComponent::GetTargetView(FGuid TargetGuid) const
 }
 
 
-bool UGAPerceptionComponent::HasClearLOS(const AActor *TargetActor, const FVector& TargetPoint) const
+bool UGAPerceptionComponent::HasClearLOS(const AActor *TargetActor, const FVector& TargetPoint, bool bApplyLightPenalty) const
 {
 	APawn* OwnerPawn = GetOwnerPawn();
 	if (OwnerPawn == NULL)
@@ -211,9 +254,19 @@ bool UGAPerceptionComponent::HasClearLOS(const AActor *TargetActor, const FVecto
 	FVector OwnerLocation = OwnerPawn->GetActorLocation();
 	UWorld* World = GetWorld();
 	bool ClearLos = false;
+	float EffectiveVisionDistance = VisionParameters.VisionDistance;
+
+	if (bApplyLightPenalty && bAffectedByLight)
+	{
+		const bool bPointIsLit = IsPointLitSimple(World, TargetPoint, LightDetectionRadius);
+		if (!bPointIsLit)
+		{
+			EffectiveVisionDistance *= FMath::Max(0.0f, DarkVisionMultiplier);
+		}
+	}
 
 	float D = FVector::Dist(TargetPoint, OwnerPawn->GetActorLocation());
-	if (D <= VisionParameters.VisionDistance)
+	if (D <= EffectiveVisionDistance)
 	{
 		float AngleDot = FMath::Cos(FMath::DegreesToRadians(VisionParameters.VisionAngle/2.0f));
 		FVector Forward = OwnerPawn->GetActorForwardVector();
