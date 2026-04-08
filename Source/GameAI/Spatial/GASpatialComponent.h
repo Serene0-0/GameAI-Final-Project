@@ -7,6 +7,7 @@
 
 class UGASpatialFunction;
 struct FFunctionLayer;
+struct FTargetState;
 class AGAGridActor;
 class UGAPathComponent;
 
@@ -35,8 +36,8 @@ class UGASpatialComponent : public UActorComponent
 	UPROPERTY()
 	mutable TSoftObjectPtr<UGAPathComponent> PathComponentInternal;
 	
-	UPROPERTY()
-	FCellRef LastChosenCell;
+	UPROPERTY(BlueprintReadOnly)
+	FCellRef BestCell;
 
 	UFUNCTION(BlueprintCallable)
 	AGAGridActor *GetGridActor() const;
@@ -49,6 +50,11 @@ class UGASpatialComponent : public UActorComponent
 	UFUNCTION(BlueprintCallable, BlueprintPure)
 	APawn *GetOwnerPawn() const;
 
+
+	// It is super easy to forget: this component will usually be attached to the CONTROLLER, not the pawn it's controlling
+	// A lot of times we want access to the pawn (e.g. when sending signals to its movement component).
+	UFUNCTION(BlueprintCallable, BlueprintPure)
+	AActor *GetTargetState(FTargetState& TargetStateOut) const;
 
 	// Core functionality
 

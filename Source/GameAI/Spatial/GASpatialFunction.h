@@ -13,7 +13,8 @@ enum ESpatialInput
 	SI_None				UMETA(DisplayName = "None"),
 	SI_TargetRange		UMETA(DisplayName = "Target Range"),
 	SI_PathDistance		UMETA(DisplayName = "PathDistance"),
-	SI_LOS				UMETA(DisplayName = "Line Of Sight")
+	SI_LOS				UMETA(DisplayName = "Line Of Sight"),
+	SI_AllyDistance		UMETA(DisplayName = "Distance to Ally")
 	// Add others if you want!
 };
 
@@ -59,6 +60,9 @@ UCLASS(BlueprintType, Blueprintable)
 class UGASpatialFunction: public UObject
 {
 	GENERATED_UCLASS_BODY()
+
+	UPROPERTY(EditAnywhere)
+	float LastCellBonus;
 
 	// Our list of layers
 	UPROPERTY(BlueprintReadOnly, EditAnywhere)

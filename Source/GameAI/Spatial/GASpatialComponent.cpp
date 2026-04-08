@@ -5,8 +5,9 @@
 #include "Math/MathFwd.h"
 #include "GASpatialFunction.h"
 #include "ProceduralMeshComponent.h"
-#include "Components/SplineComponent.h"
+#include "GameAI/Perception/GAPerceptionComponent.h"
 
+UE_DISABLE_OPTIMIZATION
 
 UGASpatialComponent::UGASpatialComponent(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
@@ -87,6 +88,25 @@ APawn* UGASpatialComponent::GetOwnerPawn() const
 }
 
 
+AActor* UGASpatialComponent::GetTargetState(FTargetState &TargetStateOut) const
+{
+	AActor* Result = NULL;
+	AActor* Owner = GetOwner();
+	UGAPerceptionComponent *PerceptionComponent = Owner->GetComponentByClass<UGAPerceptionComponent>();
+
+	if (PerceptionComponent)
+	{
+		UGATargetComponent *TargetComponent = PerceptionComponent->GetCurrentTarget();
+		if (TargetComponent)
+		{
+			Result = TargetComponent->GetOwner();
+			TargetStateOut = TargetComponent->GetTargetState();
+		}
+	}
+
+	return Result;
+}
+
 bool UGASpatialComponent::ChoosePosition(bool PathfindToPosition, bool Debug)
 {
 	bool Result = false;
@@ -97,6 +117,14 @@ bool UGASpatialComponent::ChoosePosition(bool PathfindToPosition, bool Debug)
 	}
 
 	AGAGridActor* Grid = GetGridActor();
+
+	FCellRef LastCell = BestCell;
+	BestCell = FCellRef::Invalid;
+
+	if (Grid == NULL)
+	{
+		return false;
+	}
 
 	if (SpatialFunctionReference.Get() == NULL)
 	{
@@ -128,7 +156,8 @@ bool UGASpatialComponent::ChoosePosition(bool PathfindToPosition, bool Debug)
 
 	FBox2D Box(EForceInit::ForceInit);
 	FIntRect CellRect;
-	FVector2D PawnLocation(OwnerPawn->GetActorLocation());
+	FVector StartLocation = OwnerPawn->GetActorLocation();
+	FVector2D PawnLocation(StartLocation);
 	Box += PawnLocation;
 	Box = Box.ExpandBy(SampleDimensions / 2.0f);
 	if (Grid->GridSpaceBoundsToRect2D(Box, CellRect))
@@ -146,93 +175,73 @@ bool UGASpatialComponent::ChoosePosition(bool PathfindToPosition, bool Debug)
 
 		// ~~~ STEPS TO FILL IN FOR ASSIGNMENT 3 part 4-3 ~~~
 
+
 		// (a) Run Dijkstra's to determine which cells we should even be evaluating (the GATHER phase)
 		// call UGAPathComponent::Dijkstra(const FVector &StartPoint, FGAGridMap &DistanceMapOut) const;
-		APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
-		FVector PlayerPosition = PlayerPawn->GetActorLocation();
-		FVector AIPosition = OwnerPawn->GetActorLocation();
-		
-		bool bMap = PathComponent->Dijkstra(AIPosition, DistanceMap);
-		if (!bMap)
-		{
-			return false;
-		}
-		
-		
+		PathComponent->Dijkstra(StartLocation, DistanceMap);
+
+		// Give the last best cell a bonus
+		ScoreMap.SetValue(LastCell, SpatialFunction->LastCellBonus);
+
 		// For each layer in the spatial function, evaluate and accumulate the layer in GridMap
 		// Note, only evaluate accessible cells found in step 1
 		for (const FFunctionLayer& Layer : SpatialFunction->Layers)
 		{
-			// figure out how to evaluate each layer type, and accumulate the value in the ScoreMap
+			// figure out how to evaluate each layer type, and accumulate the value in the GridMap
 			EvaluateLayer(Layer, DistanceMap, ScoreMap);
 		}
 
-		// (b) add some hysteresis (a score bonus) to the last tick's chosen cell
-		if (LastChosenCell.IsValid() && Grid->IsCellRefInBounds(LastChosenCell))
-		{
-			float CurrentScore = 0.0f;
-			const float HysteresisBonus = 1.0f;
-			if (ScoreMap.GetValue(LastChosenCell, CurrentScore))
-			{
-				ScoreMap.SetValue(LastChosenCell, CurrentScore + HysteresisBonus);
-			}
-		}
-		// (c) pick the best cell in ScoreMap
-		FCellRef BestCell = FCellRef :: Invalid;
-		float BestScore = - FLT_MAX;
+		// (b) pick the best cell in GridMap
 
-		for (int32 Y = ScoreMap.GridBounds.MinY; Y < ScoreMap.GridBounds.MaxY; Y++)
 		{
-			for (int32 X = ScoreMap.GridBounds.MinX; X < ScoreMap.GridBounds.MaxX; X++)
+			float BestScore = -FLT_MAX;
+
+			for (int32 Y = ScoreMap.GridBounds.MinY; Y <= ScoreMap.GridBounds.MaxY; Y++)
 			{
-				FCellRef CellRef(X, Y);
-				
-				// check the traversability
-				ECellData Flags = Grid->GetCellData(CellRef);
-				if (!EnumHasAllFlags(Flags, ECellData::CellDataTraversable))
+				for (int32 X = ScoreMap.GridBounds.MinX; X <= ScoreMap.GridBounds.MaxX; X++)
 				{
-					continue;
-				}
-				
-				
-				float Score = 0.0f;
-				if (ScoreMap.GetValue(CellRef, Score) && Score > BestScore)
-				{
-					BestScore = Score;
-					BestCell = CellRef;
+					FCellRef CellRef(X, Y);
+					float D;
+
+					DistanceMap.GetValue(CellRef, D);
+
+					if (D < FLT_MAX)
+					{
+						float V;
+
+						ScoreMap.GetValue(CellRef, V);
+						if (V > BestScore)
+						{
+							BestScore = V;
+							BestCell = CellRef;
+							Result = true;
+						}
+					}
 				}
 			}
 		}
 
-		bool bSelected = BestCell.IsValid();
-		bool bPathBuilt = false;
-
-		if (PathfindToPosition && bSelected)
+		if (PathfindToPosition)
 		{
-			FVector BestPosition = Grid->GetCellPosition(BestCell);
-			
-			FGAGridMap PathDistanceMap;
-			PathComponent->Dijkstra(BestPosition, PathDistanceMap);
-			
-			FVector CurrentPosition = OwnerPawn->GetActorLocation();
-			FCellRef CurrentCell = Grid->GetCellRef(CurrentPosition);
-			bPathBuilt = PathComponent->BuildPathFromDistanceMap(CurrentPosition, CurrentCell, PathDistanceMap);
+			if (BestCell.IsValid())
+			{
+				// (c) Go there! You should call your pathcomponent's UGAPathComponent::BuildPathFromDistanceMap() function
+				PathComponent->BuildPathFromDistanceMap(StartLocation, BestCell, DistanceMap);
+			}
+			else
+			{
+				PathComponent->ClearPath();
+			}
 		}
 
-		if (bPathBuilt)
-		{
-			LastChosenCell = BestCell;
-		}
-		
-		Result = PathfindToPosition ? bPathBuilt : bSelected;
-		
+
 		if (Debug)
 		{
 			// Note: this outputs (basically) the results of the position selection
 			// However, you can get creative with the debugging here. For example, maybe you want
 			// to be able to examine the values of a specific layer in the spatial function
 			// You could create a separate debug map above (where you're doing the evaluations) and
-			// cache it off for debug rendering. Ideally you'd be able to control what layer you wanted to 
+			// cache it off for debug rendering. Ideally you'd be able to control what layer you wanted to
 			// see from blueprint
 
 			Grid->DebugGridMap = ScoreMap;
@@ -245,14 +254,66 @@ bool UGASpatialComponent::ChoosePosition(bool PathfindToPosition, bool Debug)
 }
 
 
-void UGASpatialComponent::EvaluateLayer(const FFunctionLayer& Layer, const FGAGridMap& DistanceMap, FGAGridMap& ScoreMap) const
+void UGASpatialComponent::EvaluateLayer(const FFunctionLayer& Layer, const FGAGridMap& DistanceMap, FGAGridMap & ScoreMap) const
 {
+	UWorld* World = GetWorld();
 	AActor* OwnerPawn = GetOwnerPawn();
 	const AGAGridActor* Grid = GetGridActor();
-	
-	// get player pawn & position
-	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
-	FVector PlayerPosition = PlayerPawn->GetActorLocation();
+	FTargetState TargetState;
+	AActor* TargetActor = GetTargetState(TargetState);
+	FVector TargetPosition = TargetState.Position;
+	FVector Offset(0.0f, 0.0f, 60.0f);
+
+	TArray<FVector> AllyPositions;
+	TArray<float> AllyDistances;
+
+	if (Layer.Input == SI_AllyDistance)
+	{
+		TArray<AActor *> Actors;
+		UGameplayStatics::GetAllActorsOfClass(World, APawn::StaticClass(), Actors);
+
+		for (AActor* Actor : Actors)
+		{
+			if ((Actor == OwnerPawn) || (Actor == TargetActor))
+			{
+				continue;
+			}
+
+			APawn* Pawn = Cast<APawn>(Actor);
+			if (Pawn)
+			{
+				AController* Controller = Pawn->GetController();
+				if (Controller)
+				{
+					UGAPathComponent *OtherPathComponent = Controller->GetComponentByClass<UGAPathComponent>();
+					if (OtherPathComponent)
+					{
+						FVector Position;
+						float D;
+
+						// Keep track of where our allies are -- but note that if they are headed towards a
+						// destination (according to their path component) we use THAT as the ally position,
+						// rather than their current position.
+						// Note, we also keep track of their distance to that destination.
+
+						if (OtherPathComponent->State == GAPS_Active)
+						{
+							Position = OtherPathComponent->Destination;
+							D = OtherPathComponent->GetPathLength();
+						}
+						else
+						{
+							Position = Pawn->GetActorLocation();
+							D = 0.0f;
+						}
+						AllyPositions.Add(Position);
+						AllyDistances.Add(D);
+					}
+				}
+			}
+		}
+	}
+
 
 	for (int32 Y = ScoreMap.GridBounds.MinY; Y < ScoreMap.GridBounds.MaxY; Y++)
 	{
@@ -262,124 +323,95 @@ void UGASpatialComponent::EvaluateLayer(const FFunctionLayer& Layer, const FGAGr
 
 			if (EnumHasAllFlags(Grid->GetCellData(CellRef), ECellData::CellDataTraversable))
 			{
-				// Assignment 3 part 4-4: evaluate me!
+				float CellDistance;
+				if (DistanceMap.GetValue(CellRef, CellDistance) &&
+					(CellDistance < FLT_MAX))
+				{
+					// evaluate me!
 
-				// First step is determine input value. Remember there are three possible inputs to handle:
-				// 	SI_None				UMETA(DisplayName = "None"),
-				//	SI_TargetRange		UMETA(DisplayName = "Target Range"),
-				//	SI_PathDistance		UMETA(DisplayName = "PathDistance"),
-				//	SI_LOS				UMETA(DisplayName = "Line Of Sight")
-				float InputValue = 0.0f;
+					float Value = 0.0f;
 
-				switch (Layer.Input) {
-				case SI_None:
+					switch (Layer.Input)
 					{
-						InputValue = 0.0f;
+					case SI_None:
 						break;
-					}
-				case SI_TargetRange:
+					case SI_TargetRange:
 					{
-						// calculate distance to the player
 						FVector CellPosition = Grid->GetCellPosition(CellRef);
-						InputValue = FVector::Dist2D(CellPosition, PlayerPosition);
-						break;
+						Value = FVector::Distance(CellPosition, TargetPosition);
 					}
-						
-				case SI_PathDistance:
-					{
-						// extract distance from dijkstra map
-						float PathDistance = FLT_MAX;
-						if (DistanceMap.GetValue(CellRef, PathDistance))
-						{
-							if (PathDistance < FLT_MAX)
-							{
-								InputValue = PathDistance;
-							}
-							else
-							{
-								continue;
-							}
-						}
-						else
-						{
-							continue;
-						}
+					break;
+					case SI_PathDistance:
+						Value = CellDistance;
 						break;
-					}
-						
-				case SI_LOS:
+					case SI_LOS:
 					{
-						// check if it is line of sight
-						UWorld* World = GetWorld();
+						FVector CellPosition = Grid->GetCellPosition(CellRef) + Offset;
 						FHitResult HitResult;
 						FCollisionQueryParams Params;
-						FVector Start = Grid->GetCellPosition(CellRef);
-						FVector End = PlayerPosition;
-						
-						// avoid ground-level radiation, elevate the launch point
-						Start.Z += 50.0f;
-						
-						// ignore player and self
-						Params.AddIgnoredActor(OwnerPawn);
-						Params.AddIgnoredActor(PlayerPawn);
-							
-						bool bHitSomething = World->LineTraceSingleByChannel(HitResult, Start, 
-							End, ECollisionChannel::ECC_Visibility, Params);
-						
-						// if bHit is false, indicate a clear line of sight
-						InputValue = bHitSomething ? 0.0f : 1.0f;
+						FVector Start = CellPosition;
+						FVector End = TargetPosition;
+						Params.AddIgnoredActor(TargetActor);		// Probably want to ignore the target actor
+						Params.AddIgnoredActor(OwnerPawn);			// Probably want to ignore the AI themself
+						bool bHitSomething = World->LineTraceSingleByChannel(HitResult, Start, End, ECollisionChannel::ECC_Visibility, Params);
+						Value = bHitSomething ? 0.0f : 1.0f;
 						break;
 					}
-					
-					default:
-						break;
-				}
-
-				// Next, run it through the response curve using something like this
-				// float Value = 4.5f;
-				// float ModifiedValue = Layer.ResponseCurve.GetRichCurveConst()->Eval(Value, 0.0f);
-				float ModifiedValue = 0.0f;
-				if (Layer.ResponseCurve.GetRichCurveConst())
-				{
-					ModifiedValue = Layer.ResponseCurve.GetRichCurveConst()->Eval(InputValue, 0.0f);
-				}
-				else
-				{
-					// no curve, set as input value
-					ModifiedValue = InputValue;
-				}
-				// Then add it's influence to the grid map, combining with the current value using one of the two operators
-				//	SO_None				UMETA(DisplayName = "None"),
-				//	SO_Add				UMETA(DisplayName = "Add"),			// add this layer to the accumulated buffer
-				//	SO_Multiply			UMETA(DisplayName = "Multiply")		// multiply this layer into the accumulated buffer
-
-				//ScoreMap.SetValue(CellRef, CombinedValue);
-				float CurrentScore = 0.0f;
-				ScoreMap.GetValue(CellRef, CurrentScore);
-				float NewScore = CurrentScore;
-
-				switch (Layer.Op)
-				{
-				case SO_None:
+					case SI_AllyDistance:
 					{
-						continue;
-					}
-				case SO_Add:
-					{
-						NewScore = CurrentScore + ModifiedValue;
+						FVector CellPosition = Grid->GetCellPosition(CellRef);
+						float MinDistanceToAlly = BIG_NUMBER;
+						int32 NumAllies = AllyPositions.Num();
+
+						// find the closest ally to this point
+						// HOWEVER ... if we are (path) closer to this cell than THEY are to THEIR destination
+						// we are allowed to disregard them, since we would get their first, and they can deal
+						// with us instead.
+
+
+						for (int32 AllyIndex = 0; AllyIndex < NumAllies; AllyIndex++)
+						{
+							if (AllyDistances[AllyIndex] < CellDistance)
+							{
+								float D = FVector::Distance(CellPosition, AllyPositions[AllyIndex]);
+								if (D < MinDistanceToAlly)
+								{
+									MinDistanceToAlly = D;
+								}
+							}
+						}
+						Value = MinDistanceToAlly;
 						break;
 					}
-				case SO_Multiply:
+					};
+
 					{
-						NewScore = CurrentScore * ModifiedValue;
-						break;
+						// Next, run it through the response curve using something like this
+						float ModifiedValue = Layer.ResponseCurve.GetRichCurveConst()->Eval(Value, Value);
+						float CurrentValue = 0.0f;
+						float ResultValue = 0.0f;
+
+						ScoreMap.GetValue(CellRef, CurrentValue);
+
+						switch (Layer.Op)
+						{
+						case SO_None:
+							ResultValue = CurrentValue;
+							break;
+						case SO_Add:
+							ResultValue = CurrentValue + ModifiedValue;
+							break;
+						case SO_Multiply:
+							ResultValue = CurrentValue * ModifiedValue;
+							break;
+						}
+
+						ScoreMap.SetValue(CellRef, ResultValue);
 					}
-				default:
-					continue;
 				}
-				
-				ScoreMap.SetValue(CellRef, NewScore);
 			}
 		}
 	}
 }
+
+UE_ENABLE_OPTIMIZATION

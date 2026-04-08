@@ -59,7 +59,7 @@ class UGAPathComponent : public UActorComponent
 	// It is super easy to forget: this component will usually be attached to the CONTROLLER, not the pawn it's controlling
 	// A lot of times we want access to the pawn (e.g. when sending signals to its movement component).
 	UFUNCTION(BlueprintCallable, BlueprintPure)
-	APawn *GetOwnerPawn();
+	APawn *GetOwnerPawn() const;
 
 
 	// State Update ------------------------
@@ -116,7 +116,9 @@ class UGAPathComponent : public UActorComponent
 	
 	UPROPERTY()
 	bool bChargePlayerMode = false;
-	
+
+	float GetPathLength() const;
+
 private:
 	//helper of AStar implementation
 	float Heuristic(const FCellRef& Cell) const;

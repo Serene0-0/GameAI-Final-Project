@@ -39,7 +39,7 @@ const AGAGridActor* UGAPathComponent::GetGridActor() const
 	}
 }
 
-APawn* UGAPathComponent::GetOwnerPawn()
+APawn* UGAPathComponent::GetOwnerPawn() const
 {
 	AActor* Owner = GetOwner();
 	if (Owner)
@@ -221,7 +221,11 @@ void UGAPathComponent::GetNeighbors(const FCellRef& Cell, TArray<FCellRef>& Step
 EGAPathState UGAPathComponent::AStar(const FVector& StartPoint, TArray<FPathStep>& StepsOut) const
 {
 	const AGAGridActor* Grid = GetGridActor();
-	
+	if (!Grid)
+	{
+		return GAPS_Invalid;
+	}
+
 	//get start cell & check validity
 	FCellRef StartCell = Grid->GetCellRef(StartPoint);
 	if (!StartCell.IsValid() || !bDestinationValid)
@@ -610,6 +614,31 @@ bool UGAPathComponent::BuildPathFromDistanceMap(const FVector& EndPoint, const F
 	}
 
 	return bDistanceMapPathValid;
+}
+
+
+float UGAPathComponent::GetPathLength() const
+{
+	if (State == GAPS_Active)
+	{
+		float L = 0.0f;
+		FVector CurrentPoint;
+
+		const APawn *Pawn = GetOwnerPawn();
+		CurrentPoint = Pawn->GetActorLocation();
+
+		for (const FPathStep& Step : Steps)
+		{
+			L += FVector::Distance(CurrentPoint, Step.Point);
+			CurrentPoint = Step.Point;
+		}
+
+		return L;
+	}
+	else
+	{
+		return 0.0f;
+	}
 }
 
 
