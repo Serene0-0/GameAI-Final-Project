@@ -68,8 +68,8 @@ class UGATargetComponent : public UActorComponent
 	FGAGridMap OccupancyMap;
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere)
-	bool bDebugOccupancyMap = true; //editable
-
+	// bool bDebugOccupancyMap = true; //editable
+	bool bDebugOccupancyMap = false;
 
 	// Cached pointer to the grid actor
 	UPROPERTY()
