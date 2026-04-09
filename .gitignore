@@ -4,6 +4,7 @@
 /.vs/**
 .idea/
 Binaries/
+Build/
 
 Content/Collections/
 Content/Developers/
